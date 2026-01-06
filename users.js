@@ -3,8 +3,9 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
+const axios = require("axios");
 
-const JWT_SECRET = process.env.JWT_SECRET || "change-this-secret"; // secure secret in Render env
+const JWT_SECRET = process.env.JWT_SECRET || "change-this-secret";
 
 // ----------------- Helper -----------------
 function sanitizeUser(row) {
@@ -35,6 +36,229 @@ router.get("/game/round", (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 });
+
+router.post("/game/payout", express.json(), (req, res) => {
+  try {
+    const { bet, multiplier } = req.body;
+    if (bet == null || multiplier == null)
+      return res.status(400).json({ error: "Missing 'bet' or 'multiplier'" });
+    const payout = computePayout(bet, multiplier);
+    return res.json({ payout });
+  } catch (err) {
+    console.error("Error computing payout:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ----------------- Auth & User endpoints -----------------
+router.post("/auth/register", express.json(), async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const { username, phone, password } = req.body || {};
+    if (!username || !phone || !password)
+      return res.status(400).json({ error: "username, phone and password required" });
+
+    const existing = await db.query("SELECT id FROM users WHERE phone = $1", [phone]);
+    if (existing.rows.length) return res.status(409).json({ error: "Phone already registered" });
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    const password_hash = await bcrypt.hash(password, 10);
+
+    await db.query(
+      `INSERT INTO users (id, username, phone, password_hash, balance, freerounds, createdat, updatedat)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id, username, phone, password_hash, 0, 0, now, now]
+    );
+
+    const userRow = await db.query("SELECT * FROM users WHERE id = $1", [id]);
+    const user = sanitizeUser(userRow.rows[0]);
+    const token = jwt.sign({ uid: id }, JWT_SECRET, { expiresIn: "30d" });
+
+    return res.status(201).json({ token, user });
+  } catch (err) {
+    console.error("Register error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/auth/login", express.json(), async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const { phone, password } = req.body || {};
+    if (!phone || !password) return res.status(400).json({ error: "phone and password required" });
+
+    const rowRes = await db.query("SELECT * FROM users WHERE phone = $1", [phone]);
+    const row = rowRes.rows[0];
+    if (!row) return res.status(401).json({ error: "Invalid credentials" });
+
+    const ok = await bcrypt.compare(password, row.password_hash || "");
+    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+
+    const user = sanitizeUser(row);
+    const token = jwt.sign({ uid: row.id }, JWT_SECRET, { expiresIn: "30d" });
+    return res.json({ token, user });
+  } catch (err) {
+    console.error("Login error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ----------------- Auth middleware -----------------
+async function requireAuth(req, res, next) {
+  const db = req.app.locals.db;
+  const auth = req.headers.authorization || "";
+  const match = auth.match(/^Bearer\s+(.+)$/i);
+  if (!match) return res.status(401).json({ error: "Missing authorization token" });
+
+  const token = match[1];
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (!payload || !payload.uid) return res.status(401).json({ error: "Invalid token" });
+
+    const rowRes = await db.query("SELECT * FROM users WHERE id = $1", [payload.uid]);
+    const row = rowRes.rows[0];
+    if (!row) return res.status(401).json({ error: "User not found" });
+
+    req.user = sanitizeUser(row);
+    req.userRaw = row;
+    next();
+  } catch (err) {
+    console.error("Auth verify error:", err.message);
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
+// ----------------- User routes -----------------
+router.get("/users/me", requireAuth, async (req, res) => {
+  return res.json(req.user);
+});
+
+// ----------------- Change balance (internal) -----------------
+router.post("/users/balance/change", requireAuth, express.json(), async (req, res) => {
+  const db = req.app.locals.db;
+  try {
+    const delta = Number(req.body?.delta);
+    if (isNaN(delta)) return res.status(400).json({ error: "delta must be a number" });
+
+    const newBalance = req.user.balance + delta;
+    if (newBalance < 0) return res.status(400).json({ error: "Insufficient funds" });
+
+    const now = new Date().toISOString();
+    await db.query("UPDATE users SET balance=$1, updatedat=$2 WHERE id=$3", [newBalance, now, req.user.id]);
+
+    const rowRes = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
+    return res.json(sanitizeUser(rowRes.rows[0]));
+  } catch (err) {
+    console.error("Balance change error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ----------------- MTN MoMo Deposit -----------------
+router.post("/users/deposit", requireAuth, express.json(), async (req, res) => {
+  const db = req.app.locals.db;
+  const amount = Number(req.body?.amount);
+  if (isNaN(amount) || amount <= 0) return res.status(400).json({ error: "amount must be > 0" });
+
+  try {
+    const token = process.env.ACCESS_TOKEN;
+    const referenceId = uuidv4();
+
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      "X-Reference-Id": referenceId,
+      "X-Target-Environment": "sandbox",
+      "Ocp-Apim-Subscription-Key": process.env.MTN_MOMO_COLLECTIONS_SUBS_KEY,
+      "Content-Type": "application/json",
+    };
+
+    const body = {
+      amount: amount.toString(),
+      currency: "EUR",
+      externalId: `deposit_${Date.now()}`,
+      payer: { partyIdType: "MSISDN", partyId: req.user.phone },
+      payerMessage: "Deposit to Ka Ndeke",
+      payeeNote: "Deposit received",
+    };
+
+    const response = await axios.post(
+      "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay",
+      body,
+      { headers }
+    );
+
+    if (response.status === 202 || response.status === 200) {
+      await db.query("UPDATE users SET balance = balance + $1, updatedat=$2 WHERE id=$3", [
+        amount,
+        new Date().toISOString(),
+        req.user.id,
+      ]);
+      const userRow = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
+      return res.json({ ok: true, user: sanitizeUser(userRow.rows[0]), message: "Deposit request sent successfully" });
+    } else {
+      return res.status(500).json({ error: "Failed to initiate deposit" });
+    }
+  } catch (err) {
+    console.error("Deposit error:", err.response?.data || err.message);
+    return res.status(500).json({ error: "Deposit failed" });
+  }
+});
+
+// ----------------- MTN MoMo Withdraw -----------------
+router.post("/users/withdraw", requireAuth, express.json(), async (req, res) => {
+  const db = req.app.locals.db;
+  const amount = Number(req.body?.amount);
+  if (isNaN(amount) || amount <= 0) return res.status(400).json({ error: "amount must be > 0" });
+
+  if (amount > req.user.balance) return res.status(400).json({ error: "Insufficient funds" });
+
+  try {
+    const token = process.env.ACCESS_TOKEN;
+    const referenceId = uuidv4();
+
+    const headers = {
+      "Authorization": `Bearer ${token}`,
+      "X-Reference-Id": referenceId,
+      "X-Target-Environment": "sandbox",
+      "Ocp-Apim-Subscription-Key": process.env.MTN_MOMO_DISBURSEMENTS_SUBS_KEY,
+      "Content-Type": "application/json",
+    };
+
+    const body = {
+      amount: amount.toString(),
+      currency: "EUR",
+      externalId: `withdraw_${Date.now()}`,
+      payee: { partyIdType: "MSISDN", partyId: req.user.phone },
+      payerMessage: "Withdrawal from Ka Ndeke",
+      payeeNote: "Withdrawal processed",
+    };
+
+    const response = await axios.post(
+      "https://sandbox.momodeveloper.mtn.com/disbursement/v1_0/transfer",
+      body,
+      { headers }
+    );
+
+    if (response.status === 202 || response.status === 200) {
+      // deduct user balance after successful sandbox request
+      await db.query("UPDATE users SET balance = balance - $1, updatedat=$2 WHERE id=$3", [
+        amount,
+        new Date().toISOString(),
+        req.user.id,
+      ]);
+      const userRow = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
+      return res.json({ ok: true, user: sanitizeUser(userRow.rows[0]), message: "Withdrawal request sent successfully" });
+    } else {
+      return res.status(500).json({ error: "Failed to initiate withdrawal" });
+    }
+  } catch (err) {
+    console.error("Withdraw error:", err.response?.data || err.message);
+    return res.status(500).json({ error: "Withdrawal failed" });
+  }
+});
+
+module.exports = router;});
 
 router.post("/game/payout", express.json(), (req, res) => {
   try {
