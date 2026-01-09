@@ -164,11 +164,10 @@ router.post("/users/deposit", requireAuth, express.json(), async (req, res) => {
   if (isNaN(amount) || amount <= 0) return res.status(400).json({ error: "amount must be > 0" });
 
   try {
-    const token = process.env.ACCESS_TOKEN;
     const referenceId = uuidv4();
 
     const headers = {
-      "Authorization": `Bearer ${token}`,
+      "Authorization": `Bearer ${process.env.MTN_MOMO_COLLECTIONS_API_KEY}`,
       "X-Reference-Id": referenceId,
       "X-Target-Environment": "sandbox",
       "Ocp-Apim-Subscription-Key": process.env.MTN_MOMO_COLLECTIONS_SUBS_KEY,
@@ -177,7 +176,7 @@ router.post("/users/deposit", requireAuth, express.json(), async (req, res) => {
 
     const body = {
       amount: amount.toString(),
-      currency: "EUR",
+      currency: "ZMW",
       externalId: `deposit_${Date.now()}`,
       payer: { partyIdType: "MSISDN", partyId: req.user.phone },
       payerMessage: "Deposit to Ka Ndeke",
@@ -216,11 +215,10 @@ router.post("/users/withdraw", requireAuth, express.json(), async (req, res) => 
   if (amount > req.user.balance) return res.status(400).json({ error: "Insufficient funds" });
 
   try {
-    const token = process.env.ACCESS_TOKEN;
     const referenceId = uuidv4();
 
     const headers = {
-      "Authorization": `Bearer ${token}`,
+      "Authorization": `Bearer ${process.env.MTN_MOMO_DISBURSEMENTS_API_KEY}`,
       "X-Reference-Id": referenceId,
       "X-Target-Environment": "sandbox",
       "Ocp-Apim-Subscription-Key": process.env.MTN_MOMO_DISBURSEMENTS_SUBS_KEY,
@@ -229,7 +227,7 @@ router.post("/users/withdraw", requireAuth, express.json(), async (req, res) => 
 
     const body = {
       amount: amount.toString(),
-      currency: "EUR",
+      currency: "ZMW",
       externalId: `withdraw_${Date.now()}`,
       payee: { partyIdType: "MSISDN", partyId: req.user.phone },
       payerMessage: "Withdrawal from Ka Ndeke",
