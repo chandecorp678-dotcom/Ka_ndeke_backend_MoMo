@@ -4,7 +4,7 @@ const cors = require("cors");
 const path = require("path");
 
 const { initDb, pool } = require("./db");
-const routes = require("./users"); // assuming your routes file is users.js
+const routes = require("./users"); // your users.js file
 
 const app = express();
 
@@ -26,14 +26,14 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, status: "connected" });
 });
 
+// ----------------- Mount routes at root so frontend finds them -----------------
+app.use("/", routes);
+
 // ----------------- Start Server -----------------
 (async () => {
   try {
     await initDb();        // Test Postgres connection
     app.locals.db = pool;  // Attach DB to app
-
-    // Mount API routes under /api
-    app.use("/api", routes);
 
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
@@ -43,4 +43,4 @@ app.get("/health", (req, res) => {
     console.error("Failed to start server:", err);
     process.exit(1);
   }
-})();
+})(); 
