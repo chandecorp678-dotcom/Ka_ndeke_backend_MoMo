@@ -21,11 +21,7 @@ function sanitizeUser(row) {
   };
 }
 
-// ----------------- Health + Game helpers -----------------
-router.get("/health", (req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
-});
-
+// ----------------- Game helpers -----------------
 const { generateCrashPoint, computePayout } = require("./gameEngine");
 
 router.get("/game/round", (req, res) => {
@@ -135,7 +131,6 @@ router.get("/users/me", requireAuth, async (req, res) => {
   return res.json(req.user);
 });
 
-// ----------------- Change balance (internal) -----------------
 router.post("/users/balance/change", requireAuth, express.json(), async (req, res) => {
   const db = req.app.locals.db;
   try {
@@ -156,57 +151,26 @@ router.post("/users/balance/change", requireAuth, express.json(), async (req, re
   }
 });
 
-// ----------------- MTN MoMo Deposit -----------------
+// ----------------- Deposit & Withdraw -----------------
 router.post("/users/deposit", requireAuth, express.json(), async (req, res) => {
-  console.log("✅ Deposit endpoint hit", req.body);
   const db = req.app.locals.db;
   const amount = Number(req.body?.amount);
   if (isNaN(amount) || amount <= 0) return res.status(400).json({ error: "amount must be > 0" });
 
   try {
-    const referenceId = uuidv4();
-
-    const headers = {
-      "Authorization": `Bearer ${process.env.MTN_MOMO_COLLECTIONS_API_KEY}`,
-      "X-Reference-Id": referenceId,
-      "X-Target-Environment": "sandbox",
-      "Ocp-Apim-Subscription-Key": process.env.MTN_MOMO_COLLECTIONS_SUBS_KEY,
-      "Content-Type": "application/json",
-    };
-
-    const body = {
-      amount: amount.toString(),
-      currency: "ZMW",
-      externalId: `deposit_${Date.now()}`,
-      payer: { partyIdType: "MSISDN", partyId: req.user.phone },
-      payerMessage: "Deposit to Ka Ndeke",
-      payeeNote: "Deposit received",
-    };
-
-    const response = await axios.post(
-      "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay",
-      body,
-      { headers }
-    );
-
-    if (response.status === 202 || response.status === 200) {
-      await db.query("UPDATE users SET balance = balance + $1, updatedat=$2 WHERE id=$3", [
-        amount,
-        new Date().toISOString(),
-        req.user.id,
-      ]);
-      const userRow = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
-      return res.json({ ok: true, user: sanitizeUser(userRow.rows[0]), message: "Deposit request sent successfully" });
-    } else {
-      return res.status(500).json({ error: "Failed to initiate deposit" });
-    }
+    await db.query("UPDATE users SET balance = balance + $1, updatedat=$2 WHERE id=$3", [
+      amount,
+      new Date().toISOString(),
+      req.user.id,
+    ]);
+    const userRow = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
+    return res.json({ ok: true, user: sanitizeUser(userRow.rows[0]), message: "Deposit successful" });
   } catch (err) {
-    console.error("Deposit error:", err.response?.data || err.message);
+    console.error("Deposit error:", err.message);
     return res.status(500).json({ error: "Deposit failed" });
   }
 });
 
-// ----------------- MTN MoMo Withdraw -----------------
 router.post("/users/withdraw", requireAuth, express.json(), async (req, res) => {
   const db = req.app.locals.db;
   const amount = Number(req.body?.amount);
@@ -215,45 +179,15 @@ router.post("/users/withdraw", requireAuth, express.json(), async (req, res) => 
   if (amount > req.user.balance) return res.status(400).json({ error: "Insufficient funds" });
 
   try {
-    const referenceId = uuidv4();
-
-    const headers = {
-      "Authorization": `Bearer ${process.env.MTN_MOMO_DISBURSEMENTS_API_KEY}`,
-      "X-Reference-Id": referenceId,
-      "X-Target-Environment": "sandbox",
-      "Ocp-Apim-Subscription-Key": process.env.MTN_MOMO_DISBURSEMENTS_SUBS_KEY,
-      "Content-Type": "application/json",
-    };
-
-    const body = {
-      amount: amount.toString(),
-      currency: "ZMW",
-      externalId: `withdraw_${Date.now()}`,
-      payee: { partyIdType: "MSISDN", partyId: req.user.phone },
-      payerMessage: "Withdrawal from Ka Ndeke",
-      payeeNote: "Withdrawal processed",
-    };
-
-    const response = await axios.post(
-      "https://sandbox.momodeveloper.mtn.com/disbursement/v1_0/transfer",
-      body,
-      { headers }
-    );
-
-    if (response.status === 202 || response.status === 200) {
-      // deduct user balance after successful sandbox request
-      await db.query("UPDATE users SET balance = balance - $1, updatedat=$2 WHERE id=$3", [
-        amount,
-        new Date().toISOString(),
-        req.user.id,
-      ]);
-      const userRow = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
-      return res.json({ ok: true, user: sanitizeUser(userRow.rows[0]), message: "Withdrawal request sent successfully" });
-    } else {
-      return res.status(500).json({ error: "Failed to initiate withdrawal" });
-    }
+    await db.query("UPDATE users SET balance = balance - $1, updatedat=$2 WHERE id=$3", [
+      amount,
+      new Date().toISOString(),
+      req.user.id,
+    ]);
+    const userRow = await db.query("SELECT * FROM users WHERE id=$1", [req.user.id]);
+    return res.json({ ok: true, user: sanitizeUser(userRow.rows[0]), message: "Withdrawal successful" });
   } catch (err) {
-    console.error("Withdraw error:", err.response?.data || err.message);
+    console.error("Withdraw error:", err.message);
     return res.status(500).json({ error: "Withdrawal failed" });
   }
 });
