@@ -4,7 +4,7 @@ const cors = require("cors");
 const path = require("path");
 
 const { initDb, pool } = require("./db");
-const routes = require("./routes");
+const routes = require("./users"); // assuming your routes file is users.js
 
 const app = express();
 
@@ -21,9 +21,7 @@ app.use((req, res, next) => {
 // Serve static frontend (if any)
 app.use(express.static(path.join(__dirname, "public")));
 
-// ----------------- HEALTH ENDPOINT (UPDATED) -----------------
-// This endpoint now explicitly returns "connected" in the same format
-// the frontend expects to show the green "connected" indicator.
+// ----------------- HEALTH ENDPOINT -----------------
 app.get("/health", (req, res) => {
   res.json({ ok: true, status: "connected" });
 });
@@ -32,9 +30,9 @@ app.get("/health", (req, res) => {
 (async () => {
   try {
     await initDb();        // Test Postgres connection
-    app.locals.db = pool; // Attach DB to app
+    app.locals.db = pool;  // Attach DB to app
 
-    // Mount API routes
+    // Mount API routes under /api
     app.use("/api", routes);
 
     const PORT = process.env.PORT || 3000;
