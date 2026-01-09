@@ -158,6 +158,7 @@ router.post("/users/balance/change", requireAuth, express.json(), async (req, re
 
 // ----------------- MTN MoMo Deposit -----------------
 router.post("/users/deposit", requireAuth, express.json(), async (req, res) => {
+  console.log("✅ Deposit endpoint hit", req.body);
   const db = req.app.locals.db;
   const amount = Number(req.body?.amount);
   if (isNaN(amount) || amount <= 0) return res.status(400).json({ error: "amount must be > 0" });
