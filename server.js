@@ -8,24 +8,31 @@ const routes = require("./routes");
 
 const app = express();
 
-// Basic request logging to help debugging
+// ----------------- Middleware -----------------
+app.use(cors());
+app.use(express.json());
+
+// Basic request logging
 app.use((req, res, next) => {
   console.log(new Date().toISOString(), req.method, req.originalUrl);
   next();
 });
 
-app.use(cors());
-app.use(express.json());
-
-// Serve static frontend from ./public
+// Serve static frontend (if any)
 app.use(express.static(path.join(__dirname, "public")));
 
+// ----------------- HEALTH ENDPOINT (IMPORTANT) -----------------
+app.get("/health", (req, res) => {
+  res.json({ ok: true, status: "connected" });
+});
+
+// ----------------- Start Server -----------------
 (async () => {
   try {
-    await initDb();       // test Postgres connection
-    app.locals.db = pool; // attach Postgres pool to app
+    await initDb();        // Test Postgres connection
+    app.locals.db = pool; // Attach DB to app
 
-    // mount API routes under /api
+    // Mount API routes
     app.use("/api", routes);
 
     const PORT = process.env.PORT || 3000;
@@ -34,6 +41,6 @@ app.use(express.static(path.join(__dirname, "public")));
     });
   } catch (err) {
     console.error("Failed to start server:", err);
-    process.exit(1);      // <-- only here, inside catch
+    process.exit(1);
   }
 })();
