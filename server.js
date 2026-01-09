@@ -21,7 +21,9 @@ app.use((req, res, next) => {
 // Serve static frontend (if any)
 app.use(express.static(path.join(__dirname, "public")));
 
-// ----------------- HEALTH ENDPOINT (IMPORTANT) -----------------
+// ----------------- HEALTH ENDPOINT (UPDATED) -----------------
+// This endpoint now explicitly returns "connected" in the same format
+// the frontend expects to show the green "connected" indicator.
 app.get("/health", (req, res) => {
   res.json({ ok: true, status: "connected" });
 });
