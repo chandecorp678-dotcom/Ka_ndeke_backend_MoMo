@@ -4,7 +4,7 @@ const cors = require("cors");
 const path = require("path");
 
 const { initDb, pool } = require("./db");
-const routes = require("./users"); // your users.js file
+const usersRoutes = require("./users"); // your users.js file
 
 const app = express();
 
@@ -18,7 +18,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static frontend (if any)
+// Serve frontend (public folder)
 app.use(express.static(path.join(__dirname, "public")));
 
 // ----------------- HEALTH ENDPOINT -----------------
@@ -26,19 +26,18 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, status: "connected" });
 });
 
-// ----------------- Mount all routes under /api -----------------
-app.use("/api", routes);
+// ----------------- Mount user routes under /api -----------------
+app.use("/api", usersRoutes);
 
 // ----------------- Start Server -----------------
 (async () => {
   try {
-    await initDb();          // Test Postgres connection
-    app.locals.db = pool;    // Attach DB to app
+    await initDb();       // Test Postgres connection
+    app.locals.db = pool; // Attach DB to app
 
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
-      console.log("Ka Ndeke backend running on port", PORT);
-      console.log("Health endpoint: /api/health");
+      console.log(`Ka Ndeke backend running on port ${PORT}`);
     });
   } catch (err) {
     console.error("Failed to start server:", err);
