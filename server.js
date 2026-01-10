@@ -22,25 +22,26 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, "public")));
 
 // ----------------- HEALTH ENDPOINT -----------------
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({ ok: true, status: "connected" });
 });
 
-// ----------------- Mount routes at root so frontend finds them -----------------
-app.use("/", routes);
+// ----------------- Mount all routes under /api -----------------
+app.use("/api", routes);
 
 // ----------------- Start Server -----------------
 (async () => {
   try {
-    await initDb();        // Test Postgres connection
-    app.locals.db = pool;  // Attach DB to app
+    await initDb();          // Test Postgres connection
+    app.locals.db = pool;    // Attach DB to app
 
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
       console.log("Ka Ndeke backend running on port", PORT);
+      console.log("Health endpoint: /api/health");
     });
   } catch (err) {
     console.error("Failed to start server:", err);
     process.exit(1);
   }
-})(); 
+})();
