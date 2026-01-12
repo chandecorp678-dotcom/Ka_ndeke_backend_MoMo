@@ -2,90 +2,98 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Ka Ndeke – Connection Test</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ka Ndeke – Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
     body {
+      margin: 0;
+      font-family: Arial, sans-serif;
       background: #0b1c2d;
       color: #fff;
-      font-family: Arial, sans-serif;
       text-align: center;
-      padding-top: 60px;
     }
 
-    .status {
-      font-size: 22px;
-      font-weight: bold;
+    h1 {
+      margin-top: 60px;
+    }
+
+    #status {
       margin-top: 20px;
+      font-size: 28px;
+      font-weight: bold;
     }
 
-    .connected { color: #00ff9c; }
-    .reachable { color: #ffaa00; }
-    .error { color: #ff5555; }
+    .connected {
+      color: #00ff9c;
+    }
+
+    .reachable {
+      color: orange;
+    }
+
+    .offline {
+      color: red;
+    }
 
     button {
       margin-top: 30px;
-      padding: 12px 24px;
+      padding: 12px 30px;
       font-size: 16px;
-      border-radius: 6px;
       border: none;
+      border-radius: 6px;
       cursor: pointer;
     }
   </style>
 </head>
-
 <body>
 
   <h1>Ka Ndeke Backend Status</h1>
-  <div id="status" class="status reachable">Checking connection…</div>
 
-  <button onclick="checkHealth()">Recheck</button>
+  <div id="status" class="reachable">REACHABLE</div>
+
+  <button onclick="checkConnection()">Recheck</button>
 
   <script>
-    // 🔒 HARD-CODED BACKEND URL
+    // 🔒 HARD-CODED BACKEND URL (THIS IS THE KEY)
     const BACKEND_URL = "https://ka-ndeke-backend-momo.onrender.com";
 
-    async function checkHealth() {
-      const statusEl = document.getElementById("status");
-      statusEl.textContent = "Checking connection…";
-      statusEl.className = "status reachable";
+    function setStatus(text, className) {
+      const el = document.getElementById("status");
+      el.textContent = text;
+      el.className = className;
+    }
 
+    async function checkConnection() {
       try {
         const res = await fetch(BACKEND_URL + "/health", {
           method: "GET",
           headers: { "Accept": "application/json" }
         });
 
-        if (!res.ok) {
-          throw new Error("HTTP " + res.status);
-        }
+        if (!res.ok) throw new Error("HTTP " + res.status);
 
         const data = await res.json();
 
-        // ✅ THIS IS THE KEY FIX
         if (
           data.ok === true ||
           data.connected === true ||
           data.status === "connected"
         ) {
-          statusEl.textContent = "CONNECTED";
-          statusEl.className = "status connected";
+          setStatus("CONNECTED", "connected");
         } else {
-          statusEl.textContent = "REACHABLE (unexpected response)";
-          statusEl.className = "status reachable";
+          setStatus("REACHABLE", "reachable");
         }
 
       } catch (err) {
-        statusEl.textContent = "NOT CONNECTED";
-        statusEl.className = "status error";
         console.error(err);
+        setStatus("OFFLINE", "offline");
       }
     }
 
     // Auto-check on load
-    checkHealth();
+    document.addEventListener("DOMContentLoaded", checkConnection);
   </script>
 
 </body>
-</html>
+</html> 
