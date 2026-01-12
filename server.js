@@ -3,44 +3,42 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 
-const { initDb, pool } = require("./db");
-const usersRoutes = require("./users"); // your users.js file
+const users = require("./users"); // your users.js
 
 const app = express();
 
-// ----------------- Middleware -----------------
-app.use(cors());
+/* ---------------- MIDDLEWARE ---------------- */
+app.use(cors({ origin: "*"}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Basic request logging
 app.use((req, res, next) => {
   console.log(new Date().toISOString(), req.method, req.originalUrl);
   next();
 });
 
-// Serve frontend (public folder)
+/* ---------------- STATIC ---------------- */
 app.use(express.static(path.join(__dirname, "public")));
 
-// ----------------- HEALTH ENDPOINT -----------------
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, status: "connected" });
+/* ---------------- HEALTH (ALL VARIANTS) ---------------- */
+app.get("/health", (req, res) => {
+  res.json({ ok: true });
 });
 
-// ----------------- Mount user routes under /api -----------------
-app.use("/api", usersRoutes);
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true });
+});
 
-// ----------------- Start Server -----------------
-(async () => {
-  try {
-    await initDb();       // Test Postgres connection
-    app.locals.db = pool; // Attach DB to app
+app.get("/api/game/health", (req, res) => {
+  res.json({ ok: true });
+});
 
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Ka Ndeke backend running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error("Failed to start server:", err);
-    process.exit(1);
-  }
-})();
+/* ---------------- API ROUTES ---------------- */
+app.use("/api", users);
+app.use("/", users);
+
+/* ---------------- START SERVER ---------------- */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("Backend running on port", PORT);
+});
