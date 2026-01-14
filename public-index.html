@@ -2,255 +2,213 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Ka Ndeke – Aviator</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ka Ndeke – Aviator Crash</title>
 <style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #081a2b;
-  color: #fff;
-  text-align: center;
-}
-header {
-  background: #03101f;
-  padding: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-header h1 {
-  margin: 0;
-  font-size: 18px;
-  color: gold;
-}
-button {
-  padding: 8px 14px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-}
-.primary { background: gold; font-weight: bold; }
-.danger { background: crimson; color: #fff; }
-.hidden { display: none; }
-
-.game-box {
-  background: #12345a;
-  margin: 10px;
-  border-radius: 10px;
-  padding: 10px;
-  height: 260px;
-  position: relative;
-  overflow: hidden;
-}
-#multiplier {
-  font-size: 26px;
-  font-weight: bold;
-  position: absolute;
-  top: 10px;
-  left: 10px;
-}
-#plane {
-  width: 80px;
-  position: absolute;
-  bottom: 20px;
-  left: 10px;
-  transition: transform 0.1s linear;
-}
-input {
-  padding: 8px;
-  margin: 5px;
-  width: 140px;
-  text-align: center;
-}
-
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.85);
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-.modal-content {
-  background: #0c223a;
-  padding: 20px;
-  width: 90%;
-  max-width: 300px;
-  border-radius: 8px;
-}
-.modal-content input { width: 100%; }
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #0b1220;
+        color: #fff;
+        text-align: center;
+    }
+    header {
+        padding: 10px;
+        background: #111a33;
+    }
+    button {
+        padding: 10px 15px;
+        margin: 5px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    #loginBtn, #registerBtn {
+        background: #fff;
+        color: #111a33;
+    }
+    #playBtn { background: #ffc400; color: #111; }
+    #cashOutBtn { background: #ff2c2c; color: #fff; }
+    #depositBtn, #withdrawBtn { background: #fff; color: #111; }
+    input {
+        padding: 10px;
+        margin: 5px;
+        width: 90%;
+        max-width: 300px;
+    }
+    .hidden { display: none; }
+    #game {
+        margin-top: 20px;
+        width: 100%;
+        max-width: 400px;
+        height: 200px;
+        background: #1b3050;
+        position: relative;
+        overflow: hidden;
+        margin-left: auto;
+        margin-right: auto;
+        border-radius: 8px;
+    }
+    #plane {
+        position: absolute;
+        bottom: 0;
+        left: 10px;
+        width: 50px;
+        transition: bottom 0.05s linear;
+    }
 </style>
 </head>
-
 <body>
 
 <header>
-  <h1>✈️ Ka Ndeke</h1>
-  <div>
-    <button onclick="showLogin()">Login</button>
-    <button onclick="showRegister()">Register</button>
-    <button id="logoutBtn" class="hidden" onclick="logout()">Logout</button>
-  </div>
+    ✈️ <strong>Ka Ndeke</strong>
+    <button id="loginBtn">Login</button>
+    <button id="registerBtn">Register</button>
 </header>
 
-<div>
-  Logged in as: <b id="username">Guest</b><br>
-  Balance: <b>ZMW <span id="balance">10.00</span></b>
+<p id="userStatus">Logged in as: <strong>Guest</strong></p>
+<p id="balance">Balance: ZMW 30.00</p>
+
+<div id="game">
+    <svg id="plane" viewBox="0 0 64 64">
+        <polygon points="0,32 48,24 48,28 64,28 64,36 48,36 48,40" fill="#ff8800"/>
+    </svg>
+    <span id="multiplier" style="position:absolute; top:10px; left:10px;">1.00x</span>
 </div>
 
-<div class="game-box">
-  <div id="multiplier">1.00x</div>
-  <svg id="plane" viewBox="0 0 64 32">
-    <path d="M4 18 C18 18 32 16 46 12 C50 11 54 9 60 8" fill="#FFD54F"/>
-  </svg>
-</div>
+<input type="number" id="betAmount" placeholder="Enter bet amount" value="5"/><br>
+<button id="playBtn">Play</button>
+<button id="cashOutBtn">Cash Out</button><br>
+<button id="depositBtn">Deposit ZMW</button>
+<button id="withdrawBtn">Withdraw ZMW</button>
 
-<div>
-  <input type="number" id="bet" value="5" min="1"><br>
-  <button class="primary" onclick="startGame()">Play</button>
-  <button class="danger" onclick="cashOut()">Cash Out</button><br><br>
-  <button onclick="deposit()">Deposit</button>
-  <button onclick="withdraw()">Withdraw</button>
-</div>
-
-<!-- LOGIN -->
-<div class="modal" id="loginModal">
-  <div class="modal-content">
-    <h3>Login</h3>
-    <input id="loginPhone" placeholder="Phone">
-    <input id="loginPassword" type="password" placeholder="Password">
-    <button class="primary" onclick="login()">Submit</button>
-    <button onclick="hideModals()">Cancel</button>
-  </div>
-</div>
-
-<!-- REGISTER -->
-<div class="modal" id="registerModal">
-  <div class="modal-content">
-    <h3>Register</h3>
-    <input id="regName" placeholder="Full Name">
-    <input id="regPhone" placeholder="Phone">
-    <input id="regPassword" type="password" placeholder="Password">
-    <button class="primary" onclick="register()">Submit</button>
-    <button onclick="hideModals()">Cancel</button>
-  </div>
+<!-- Register/Login modals -->
+<div id="modal" class="hidden">
+    <input type="text" id="regName" placeholder="Full Name"/>
+    <input type="text" id="regPhone" placeholder="Phone"/>
+    <input type="password" id="regPassword" placeholder="Password"/>
+    <button id="submitReg">Submit</button>
+    <button id="cancelReg">Cancel</button>
 </div>
 
 <script>
-const API = "https://ka-ndeke-backend-momo.onrender.com";
+const backendURL = "https://ka-ndeke-backend-momo.onrender.com";
 
-let user = JSON.parse(localStorage.getItem("user")) || { guest: true };
-let balance = Number(localStorage.getItem("balance")) || 10;
+let balance = parseFloat(localStorage.getItem("guestBalance") || "30");
+let loggedIn = false;
 
-let running=false, multiplier=1, timer, crash;
-
-function updateUI(){
-  username.textContent = user.name || "Guest";
-  balanceEl.textContent = balance.toFixed(2);
-  logoutBtn.classList.toggle("hidden", user.guest);
-  localStorage.setItem("balance", balance);
-  localStorage.setItem("user", JSON.stringify(user));
+// Update UI
+function updateUI() {
+    document.getElementById("balance").textContent = "Balance: ZMW " + balance.toFixed(2);
+    document.getElementById("userStatus").innerHTML = "Logged in as: <strong>" + (loggedIn ? localStorage.getItem("username") : "Guest") + "</strong>";
 }
-const balanceEl = document.getElementById("balance");
 updateUI();
 
-/* GAME */
-function startGame(){
-  if(running) return;
-  const bet = Number(bet.value);
-  if(bet>balance) return alert("Insufficient balance");
-  balance -= bet; updateUI();
-  running=true; multiplier=1;
-  crash = Math.random()*4+1.2;
-  timer=setInterval(()=>{
-    multiplier+=0.02;
-    multiplierEl.textContent=multiplier.toFixed(2)+"x";
-    plane.style.transform=`translate(${multiplier*30}px,-${multiplier*10}px)`;
-    if(multiplier>=crash) endGame(false);
-  },50);
-}
-const multiplierEl=document.getElementById("multiplier");
+// Guest Deposit/Withdraw
+document.getElementById("depositBtn").onclick = () => {
+    let amt = parseFloat(prompt("Enter deposit amount"));
+    if(!amt || amt <= 0) return alert("Invalid amount");
+    balance += amt;
+    localStorage.setItem("guestBalance", balance);
+    updateUI();
+};
+document.getElementById("withdrawBtn").onclick = () => {
+    let amt = parseFloat(prompt("Enter withdraw amount"));
+    if(!amt || amt <= 0) return alert("Invalid amount");
+    if(amt > balance) return alert("Insufficient balance");
+    balance -= amt;
+    localStorage.setItem("guestBalance", balance);
+    updateUI();
+};
 
-function cashOut(){ if(running) endGame(true); }
-function endGame(win){
-  clearInterval(timer); running=false;
-  if(win) balance += Number(bet.value)*multiplier;
-  multiplier=1;
-  plane.style.transform="translate(0,0)";
-  multiplierEl.textContent="1.00x";
-  updateUI();
-}
+// Plane animation
+let plane = document.getElementById("plane");
+let multiplier = document.getElementById("multiplier");
+let planeHeight = 0;
+let playing = false;
 
-/* AUTH */
-function showLogin(){ loginModal.style.display="flex"; }
-function showRegister(){ registerModal.style.display="flex"; }
-function hideModals(){ loginModal.style.display=registerModal.style.display="none"; }
+document.getElementById("playBtn").onclick = () => {
+    if(playing) return;
+    playing = true;
+    planeHeight = 0;
+    multiplier.textContent = "1.00x";
+    let mult = 1;
+    const interval = setInterval(() => {
+        planeHeight += 1;
+        mult += 0.01;
+        plane.style.bottom = planeHeight + "px";
+        multiplier.textContent = mult.toFixed(2) + "x";
+        if(mult > 5) clearInterval(interval);
+    }, 50);
+    setTimeout(() => { playing = false; }, 5000);
+};
+document.getElementById("cashOutBtn").onclick = () => {
+    if(!playing) return alert("You are not in a round");
+    playing = false;
+    alert("Cashed out at multiplier: " + multiplier.textContent);
+};
 
-async function login(){
-  try{
-    const res = await fetch(API+"/auth/login",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({
-        phone: loginPhone.value,
-        phone_number: loginPhone.value,
-        password: loginPassword.value
-      })
-    });
-    const data = await res.json();
-    if(!res.ok) throw data;
-    user = data.user || { name:data.name };
-    balance = Number(data.balance ?? 5);
-    user.guest=false;
-    hideModals(); updateUI();
-  }catch(e){ alert(e.error||"Login failed"); }
-}
+// Register/Login Modals
+document.getElementById("registerBtn").onclick = () => {
+    document.getElementById("modal").classList.remove("hidden");
+};
+document.getElementById("cancelReg").onclick = () => {
+    document.getElementById("modal").classList.add("hidden");
+};
 
-async function register(){
-  try{
-    const res = await fetch(API+"/auth/register",{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({
-        name: regName.value,
-        full_name: regName.value,
-        phone: regPhone.value,
-        phone_number: regPhone.value,
-        password: regPassword.value
-      })
-    });
-    const data = await res.json();
-    if(!res.ok) throw data;
-    user = data.user || { name: regName.value };
-    balance = 5;
-    user.guest=false;
-    hideModals(); updateUI();
-  }catch(e){ alert(e.error||"Register failed"); }
-}
+document.getElementById("submitReg").onclick = async () => {
+    const name = document.getElementById("regName").value.trim();
+    const phone = document.getElementById("regPhone").value.trim();
+    const password = document.getElementById("regPassword").value.trim();
+    if(!name || !phone || !password) return alert("All fields required");
 
-function logout(){
-  user={ guest:true };
-  balance=10;
-  updateUI();
-}
+    try {
+        const res = await fetch(backendURL + "/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: name, phone, password })
+        });
+        const data = await res.json();
+        if(res.ok) {
+            alert("Registered successfully!");
+            localStorage.setItem("username", name);
+            loggedIn = true;
+            document.getElementById("modal").classList.add("hidden");
+            updateUI();
+        } else {
+            alert(data.message || "Registration failed");
+        }
+    } catch(err) {
+        alert("Server error");
+    }
+};
 
-/* WALLET */
-function deposit(){
-  if(user.guest){
-    balance+=10; updateUI(); return;
-  }
-  alert("Backend deposit hook ready");
-}
-function withdraw(){
-  if(user.guest){
-    if(balance<10) return alert("Too low");
-    balance-=10; updateUI(); return;
-  }
-  alert("Backend withdraw hook ready");
-}
+document.getElementById("loginBtn").onclick = async () => {
+    const name = prompt("Enter username");
+    const password = prompt("Enter password");
+    if(!name || !password) return alert("All fields required");
+
+    try {
+        const res = await fetch(backendURL + "/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: name, password })
+        });
+        const data = await res.json();
+        if(res.ok) {
+            alert("Logged in successfully!");
+            localStorage.setItem("username", name);
+            loggedIn = true;
+            updateUI();
+        } else {
+            alert(data.message || "Login failed");
+        }
+    } catch(err) {
+        alert("Server error");
+    }
+};
+
 </script>
-
 </body>
-</html>
+  </html>
