@@ -1,99 +1,277 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Ka Ndeke – Game</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Aviator Crash – ZMW</title>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0b1c2d;
-      color: #fff;
-      text-align: center;
-    }
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0b1220;
+  color: #fff;
+  text-align: center;
+}
 
-    h1 {
-      margin-top: 60px;
-    }
+header {
+  padding: 10px;
+  background: #111a33;
+}
 
-    #status {
-      margin-top: 20px;
-      font-size: 28px;
-      font-weight: bold;
-    }
+button {
+  padding: 10px 15px;
+  margin: 5px;
+  background: #f5c400;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
 
-    .connected {
-      color: #00ff9c;
-    }
+input {
+  padding: 10px;
+  margin: 5px;
+  width: 90%;
+  max-width: 300px;
+}
 
-    .reachable {
-      color: orange;
-    }
+.hidden { display: none; }
 
-    .offline {
-      color: red;
-    }
+#game {
+  margin-top: 20px;
+}
 
-    button {
-      margin-top: 30px;
-      padding: 12px 30px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-  </style>
+#sky {
+  position: relative;
+  height: 200px;
+  background: linear-gradient(#1b2b5a, #0b1220);
+  overflow: hidden;
+}
+
+#plane {
+  position: absolute;
+  bottom: 20px;
+  left: 10px;
+  width: 80px;
+  transition: transform 0.1s linear;
+}
+
+#multiplier {
+  font-size: 40px;
+  margin: 10px 0;
+  color: #00ffcc;
+}
+
+#balance {
+  margin-top: 5px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: #111a33;
+  padding: 20px;
+  border-radius: 10px;
+}
+</style>
 </head>
+
 <body>
 
-  <h1>Ka Ndeke Backend Status</h1>
+<header>
+  <strong>Aviator Crash Game</strong><br>
+  <span id="balance">Balance: ZMW 10.00 (Guest)</span><br>
+  <button onclick="showLogin()">Login</button>
+  <button onclick="showRegister()">Register</button>
+  <button onclick="logout()">Guest</button>
+</header>
 
-  <div id="status" class="reachable">REACHABLE</div>
+<div id="game">
+  <div id="multiplier">1.00x</div>
 
-  <button onclick="checkConnection()">Recheck</button>
+  <div id="sky">
+    <img id="plane"
+      src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Airplane_silhouette.png"
+      alt="plane"/>
+  </div>
 
-  <script>
-    // 🔒 HARD-CODED BACKEND URL (THIS IS THE KEY)
-    const BACKEND_URL = "https://ka-ndeke-backend-momo.onrender.com";
+  <input type="number" id="bet" placeholder="Bet Amount (ZMW)" value="1"/>
+  <br>
+  <button onclick="startGame()">Play</button>
+  <button onclick="cashOut()">Cash Out</button>
+  <br>
+  <button onclick="deposit()">Deposit</button>
+  <button onclick="withdraw()">Withdraw</button>
+</div>
 
-    function setStatus(text, className) {
-      const el = document.getElementById("status");
-      el.textContent = text;
-      el.className = className;
+<!-- LOGIN -->
+<div id="loginModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Login</h3>
+    <input id="loginPhone" placeholder="Phone"/>
+    <input id="loginPass" type="password" placeholder="Password"/>
+    <br>
+    <button onclick="login()">Submit</button>
+    <button onclick="hideModals()">Cancel</button>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div id="registerModal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Register</h3>
+    <input id="regName" placeholder="Full Name"/>
+    <input id="regPhone" placeholder="Phone"/>
+    <input id="regPass" type="password" placeholder="Password"/>
+    <br>
+    <button onclick="register()">Submit</button>
+    <button onclick="hideModals()">Cancel</button>
+  </div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const API = "https://ka-ndeke-backend-momo.onrender.com";
+
+/* ================= STATE ================= */
+let user = { guest: true };
+let balance = 10;
+let multiplier = 1;
+let interval = null;
+let crashed = false;
+
+/* ================= UI ================= */
+function updateUI() {
+  document.getElementById("balance").innerText =
+    `Balance: ZMW ${balance.toFixed(2)} ${user.guest ? "(Guest)" : ""}`;
+}
+
+updateUI();
+
+/* ================= AUTH ================= */
+function showLogin(){ hideModals(); loginModal.classList.remove("hidden"); }
+function showRegister(){ hideModals(); registerModal.classList.remove("hidden"); }
+function hideModals(){
+  loginModal.classList.add("hidden");
+  registerModal.classList.add("hidden");
+}
+
+async function login(){
+  try{
+    const res = await fetch(API + "/api/auth/login",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({
+        phone: loginPhone.value,
+        password: loginPass.value
+      })
+    });
+
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+
+    user = data.user;
+    balance = data.balance ?? 5;
+    hideModals();
+    updateUI();
+  }catch{
+    alert("Login failed");
+  }
+}
+
+async function register(){
+  try{
+    const res = await fetch(API + "/api/auth/register",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({
+        name: regName.value,
+        phone: regPhone.value,
+        password: regPass.value
+      })
+    });
+
+    if(!res.ok) throw new Error();
+    alert("Registered successfully. Please login.");
+    hideModals();
+  }catch{
+    alert("Register failed");
+  }
+}
+
+function logout(){
+  user = { guest:true };
+  balance = 10;
+  updateUI();
+}
+
+/* ================= GAME ================= */
+function startGame(){
+  if(interval) return;
+
+  const bet = Number(bet.value);
+  if(bet <= 0 || bet > balance){
+    alert("Invalid bet");
+    return;
+  }
+
+  balance -= bet;
+  updateUI();
+
+  multiplier = 1;
+  crashed = false;
+  let x = 10;
+
+  interval = setInterval(()=>{
+    multiplier += 0.02;
+    document.getElementById("multiplier").innerText =
+      multiplier.toFixed(2)+"x";
+
+    x += 2;
+    plane.style.transform = `translate(${x}px, ${-multiplier*5}px)`;
+
+    if(Math.random() < 0.01 * multiplier){
+      crash();
     }
+  },50);
+}
 
-    async function checkConnection() {
-      try {
-        const res = await fetch(BACKEND_URL + "/health", {
-          method: "GET",
-          headers: { "Accept": "application/json" }
-        });
+function crash(){
+  clearInterval(interval);
+  interval = null;
+  crashed = true;
+  alert("Crashed!");
+}
 
-        if (!res.ok) throw new Error("HTTP " + res.status);
+function cashOut(){
+  if(!interval || crashed) return;
+  clearInterval(interval);
+  interval = null;
 
-        const data = await res.json();
+  const win = Number(bet.value) * multiplier;
+  balance += win;
+  updateUI();
+}
 
-        if (
-          data.ok === true ||
-          data.connected === true ||
-          data.status === "connected"
-        ) {
-          setStatus("CONNECTED", "connected");
-        } else {
-          setStatus("REACHABLE", "reachable");
-        }
+/* ================= WALLET ================= */
+async function deposit(){
+  if(user.guest) return alert("Login required");
+  alert("Deposit request sent");
+}
 
-      } catch (err) {
-        console.error(err);
-        setStatus("OFFLINE", "offline");
-      }
-    }
-
-    // Auto-check on load
-    document.addEventListener("DOMContentLoaded", checkConnection);
-  </script>
+async function withdraw(){
+  if(user.guest) return alert("Login required");
+  alert("Withdraw request sent");
+}
+</script>
 
 </body>
-</html> 
+    </html>
